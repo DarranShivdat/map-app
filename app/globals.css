@@ -24,3 +24,17 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Tappable midpoint marker shown in the clustered (overview) mode. */
+.parking-dot {
+  background: #1e9e4a;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Leaflet's panes must sit below our header/sheet overlays. */
+.leaflet-container {
+  background: #e9ecef;
+  font: inherit;
+}
