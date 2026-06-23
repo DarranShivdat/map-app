@@ -1,9 +1,21 @@
-import type { FeatureCollection } from "geojson";
+import type { FeatureCollection, LineString, MultiLineString } from "geojson";
 
 /** A geographic coordinate. */
 export interface LatLng {
   lat: number;
   lng: number;
+}
+
+/**
+ * A nearest-parking candidate to highlight on the map. Geometry-agnostic to the
+ * provider: it gets the block geometry, the snapped (closest) point for a pin,
+ * and a 1-based rank for labelling.
+ */
+export interface MapCandidate {
+  id: string | number;
+  geometry: LineString | MultiLineString;
+  snapped: LatLng;
+  rank: number;
 }
 
 /** Initial camera position for the map. */
@@ -41,6 +53,26 @@ export interface MapProvider {
   onSelectFeature(handler: SelectHandler): void;
   /** Move the camera to a coordinate. */
   flyTo(target: LatLng, zoom?: number): void;
+
+  // --- Directions-finder surface ---
+  /** Show/move the "you are here" origin marker (null clears it). */
+  setOrigin(origin: LatLng | null): void;
+  /**
+   * Highlight the nearest candidates. A non-empty list switches the map into
+   * "focused" mode (the full overview is hidden); an empty list restores it.
+   */
+  setCandidates(candidates: MapCandidate[]): void;
+  /** Mark one candidate as selected (emphasised), or null to clear. */
+  setSelectedCandidate(id: string | number | null): void;
+  /** Draw the route polyline from origin to a block (replaces any existing). */
+  drawRoute(points: LatLng[]): void;
+  /** Remove the route polyline. */
+  clearRoute(): void;
+  /** Fit the camera to the given points with padding. */
+  fitBounds(points: LatLng[]): void;
+  /** Register a handler for taps on empty map (used for drop-pin mode). */
+  onMapClick(handler: (latlng: LatLng) => void): void;
+
   /** Tear down the map and release resources. */
   unmount(): void;
 }

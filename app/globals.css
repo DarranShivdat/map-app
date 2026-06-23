@@ -38,3 +38,28 @@ body {
   background: #e9ecef;
   font: inherit;
 }
+
+/* "You are here" origin marker. */
+.origin-dot {
+  background: #2563eb;
+  border: 3px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25), 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Numbered nearest-parking candidate pins. */
+.parking-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1e9e4a;
+  color: #fff;
+  font: 600 13px/1 Arial, sans-serif;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.parking-candidate--active {
+  background: #2563eb;
+  transform: scale(1.15);
+}
