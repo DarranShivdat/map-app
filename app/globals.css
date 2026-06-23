@@ -1,50 +1,90 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f5f7;
+  --foreground: #0b0d12;
+
+  /* Brand accents — kept in sync with the map provider's polyline colours so
+     UI chrome and the drawn route read as one system. */
+  --accent: #2563eb; /* origin / route / selected — the "go" colour */
+  --accent-press: #1d4ed8;
+  --pin: #1e9e4a; /* nearest-candidate map pins */
+
+  /* Sheet / glass surface tuning. */
+  --sheet-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-pin: var(--pin);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Mobile: the draggable sheet owns vertical gestures — don't bounce the page. */
+  overscroll-behavior: none;
 }
 
-/* Tappable midpoint marker shown in the clustered (overview) mode. */
-.parking-dot {
-  background: #1e9e4a;
-  border: 2px solid #ffffff;
-  border-radius: 9999px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+/* Smooth, momentum-free snapping for the bottom sheet. */
+.sheet-rest {
+  transition: transform 0.42s var(--sheet-ease);
 }
 
-/* Leaflet's panes must sit below our header/sheet overlays. */
+/* Sheet rises + fades in on mount (decoupled from the snap transform). */
+@keyframes sheet-in {
+  from {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.sheet-in {
+  animation: sheet-in 0.4s var(--sheet-ease) both;
+}
+
+/* Hide scrollbars inside sheets without losing scrollability. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Leaflet panes sit below our floating chrome; give tiles the page bg. */
 .leaflet-container {
-  background: #e9ecef;
+  background: #e7eaf0;
   font: inherit;
 }
 
-/* "You are here" origin marker. */
+/* Tappable midpoint marker in the clustered (overview) mode. */
+.parking-dot {
+  background: var(--pin);
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+}
+
+/* "You are here" origin marker — pulses gently to read as live. */
 .origin-dot {
-  background: #2563eb;
+  background: var(--accent);
   border: 3px solid #ffffff;
   border-radius: 9999px;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25), 0 1px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.22), 0 2px 8px rgba(15, 23, 42, 0.4);
 }
 
 /* Numbered nearest-parking candidate pins. */
@@ -52,14 +92,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #1e9e4a;
+  background: var(--pin);
   color: #fff;
-  font: 600 13px/1 Arial, sans-serif;
-  border: 2px solid #fff;
+  font: 700 13px/1 var(--font-geist-sans), Arial, sans-serif;
+  border: 2.5px solid #fff;
   border-radius: 9999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+  transition: transform 0.18s var(--sheet-ease);
 }
 .parking-candidate--active {
-  background: #2563eb;
-  transform: scale(1.15);
+  background: var(--accent);
+  transform: scale(1.22);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.5);
 }

@@ -2,9 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useRef, useState } from "react";
-import BottomSheet from "@/components/BottomSheet";
 import SearchBar from "@/components/SearchBar";
-import ResultsList from "@/components/ResultsList";
+import ResultsSheet from "@/components/ResultsSheet";
+import DetailSheet from "@/components/DetailSheet";
+import StatusBanner from "@/components/StatusBanner";
+import type { Snap } from "@/components/Sheet";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { createLeafletProvider } from "@/lib/map/leaflet-provider";
 import { fetchWalkingRoute } from "@/lib/geo/route";
@@ -44,13 +46,14 @@ export default function Home() {
   const [focusBounds, setFocusBounds] = useState<LatLng[] | null>(null);
   const [feature, setFeature] = useState<SelectedFeature | null>(null);
   const [dropPin, setDropPin] = useState(false);
+  const [sheetSnap, setSheetSnap] = useState<Snap>("half");
 
   const routeReq = useRef(0);
 
   // Set a new origin and compute the nearest blocks. The ranking runs on the
   // server over the full dataset (the client only holds the current viewport),
   // so this is async — origin is set immediately, results land when the fetch
-  // resolves.
+  // resolves and the sheet opens at "half".
   async function applyOrigin(o: Origin) {
     setOrigin(o);
     setResults([]); // drop the previous origin's results until the fetch lands
@@ -61,6 +64,7 @@ export default function Home() {
       const res = await fetchNearest(o.latlng, 5);
       setResults(res);
       setFocusBounds([o.latlng, ...res.map((r) => r.snapped)]);
+      setSheetSnap("half");
     } catch {
       setResults([]);
       setFocusBounds([o.latlng]);
@@ -84,6 +88,7 @@ export default function Home() {
     setSelectedId(id);
     setRoute([origin.latlng, r.snapped]); // straight line immediately
     setFocusBounds([origin.latlng, r.snapped]);
+    setSheetSnap("peek"); // clear the map to reveal the route
 
     // Best-effort upgrade to a real walking path; ignore if stale or failed.
     const token = ++routeReq.current;
@@ -104,16 +109,17 @@ export default function Home() {
     setFeature(null);
     setFocusBounds(null);
     setDropPin(false);
+    setSheetSnap("half");
   }
 
-  const locationError =
+  const statusMessage =
     geo.status === "denied"
-      ? "Location permission denied — search an address or drop a test pin."
+      ? "Location is off. Search an address or drop a pin."
       : geo.status === "unavailable"
-      ? "Couldn't get your location — search an address or drop a test pin."
+      ? "Couldn't find your location. Try searching instead."
       : null;
 
-  const hasResults = origin && results.length > 0;
+  const hasResults = !!origin && results.length > 0;
 
   return (
     <main className="relative h-[100dvh] w-full overflow-hidden">
@@ -144,21 +150,12 @@ export default function Home() {
         }}
       />
 
-      {/* Search / origin panel */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] p-3">
-        <div className="pointer-events-auto mx-auto max-w-xl rounded-2xl bg-white/95 p-3 shadow-lg backdrop-blur">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#1e9e4a]" />
-              <h1 className="text-sm font-bold text-zinc-900">NYC Parking Finder</h1>
-            </div>
-            {origin && (
-              <button onClick={reset} className="text-xs font-medium text-zinc-500 hover:text-zinc-800">
-                New search
-              </button>
-            )}
-          </div>
-
+      {/* Floating top chrome: search + status. */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-3 pt-3"
+        style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
+      >
+        <div className="pointer-events-auto mx-auto max-w-xl space-y-2.5">
           <SearchBar
             onUseMyLocation={handleUseMyLocation}
             onPickAddress={(hit) =>
@@ -168,47 +165,34 @@ export default function Home() {
               applyOrigin({ source: "simulated", latlng: MANHATTAN, label: "Manhattan test pin" })
             }
             locating={geo.status === "locating"}
-            locationError={locationError}
             ready
+            hasOrigin={!!origin}
+            onReset={reset}
+            dropPin={dropPin}
+            onToggleDropPin={() => setDropPin((v) => !v)}
           />
-
-          <button
-            onClick={() => setDropPin((v) => !v)}
-            className={`mt-2 text-xs font-medium ${dropPin ? "text-[#2563eb]" : "text-zinc-400"} hover:text-zinc-700`}
-          >
-            {dropPin ? "Tap the map to drop your location…" : "…or drop a pin on the map"}
-          </button>
+          {statusMessage && !hasResults && (
+            <StatusBanner message={statusMessage} tone="info" />
+          )}
         </div>
       </div>
 
-      {/* Results sheet */}
+      {/* Results sheet (search flow). */}
       {hasResults && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1000]">
-          <div
-            className="pointer-events-auto mx-auto flex max-h-[52dvh] max-w-xl flex-col rounded-t-2xl bg-zinc-50 shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-          >
-            <div className="px-4 pb-2 pt-3">
-              <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-zinc-300" />
-              <h2 className="text-sm font-semibold text-zinc-900">
-                {results.length} nearest metered blocks
-              </h2>
-              <p className="truncate text-xs text-zinc-500">from {origin!.label}</p>
-            </div>
-            <div className="overflow-auto px-3 pb-3">
-              <ResultsList
-                results={results}
-                origin={origin!.latlng}
-                selectedId={selectedId}
-                onSelect={selectResult}
-              />
-            </div>
-          </div>
-        </div>
+        <ResultsSheet
+          results={results}
+          origin={origin!.latlng}
+          originLabel={origin!.label}
+          selectedId={selectedId}
+          idOf={idOf}
+          snap={sheetSnap}
+          onSnapChange={setSheetSnap}
+          onSelect={selectResult}
+        />
       )}
 
-      {/* Idle exploration: tap a metered block for details */}
-      {!hasResults && <BottomSheet feature={feature} onClose={() => setFeature(null)} />}
+      {/* Idle exploration: tap a metered block for details. */}
+      {!hasResults && <DetailSheet feature={feature} onClose={() => setFeature(null)} />}
     </main>
   );
 }
