@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { FeatureCollection } from "geojson";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type {
   MapProviderFactory,
   MapView as MapViewport,

@@ -18,6 +18,11 @@ export function createLeafletProvider(): MapProvider {
   let polylineLayer: import("leaflet").GeoJSON | null = null;
   let markerLayer: import("leaflet").MarkerClusterGroup | null = null;
   let selectHandler: SelectHandler = () => {};
+  // Set synchronously by unmount(). Because mount() awaits a dynamic import,
+  // React Strict Mode can tear this provider down before mount() finishes; we
+  // check this flag after the awaits so we never init the map on a dead
+  // container (avoids Leaflet's "Map container is already initialized").
+  let destroyed = false;
 
   function select(feature: ParkingFeature, center: LatLng) {
     selectHandler({
@@ -44,6 +49,7 @@ export function createLeafletProvider(): MapProvider {
       L = (await import("leaflet")).default;
       // markercluster augments the L namespace as a side effect.
       await import("leaflet.markercluster");
+      if (destroyed) return; // torn down (e.g. Strict Mode) while importing
 
       map = L.map(container, {
         center: [view.center.lat, view.center.lng],
@@ -115,6 +121,7 @@ export function createLeafletProvider(): MapProvider {
     },
 
     unmount() {
+      destroyed = true;
       map?.remove();
       map = null;
       polylineLayer = null;
