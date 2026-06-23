@@ -24,6 +24,9 @@ export interface MapView {
   zoom: number;
 }
 
+/** Geographic bounds as a GeoJSON-order tuple: [west, south, east, north]. */
+export type BBox = [west: number, south: number, east: number, north: number];
+
 /**
  * A feature the user selected (tapped). Geometry-agnostic on purpose: a
  * provider may select a polyline, a marker, or later a true point — consumers
@@ -72,6 +75,12 @@ export interface MapProvider {
   fitBounds(points: LatLng[]): void;
   /** Register a handler for taps on empty map (used for drop-pin mode). */
   onMapClick(handler: (latlng: LatLng) => void): void;
+
+  // --- Viewport-driven (bbox) loading ---
+  /** Current visible bounds, or null before the map has mounted. */
+  getBounds(): BBox | null;
+  /** Register a handler fired (after pan/zoom settles) with the new bounds. */
+  onViewportChange(handler: (bounds: BBox) => void): void;
 
   /** Tear down the map and release resources. */
   unmount(): void;

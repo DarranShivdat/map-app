@@ -6,10 +6,10 @@ import BottomSheet from "@/components/BottomSheet";
 import SearchBar from "@/components/SearchBar";
 import ResultsList from "@/components/ResultsList";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { useParkingData } from "@/hooks/useParkingData";
 import { createLeafletProvider } from "@/lib/map/leaflet-provider";
 import { fetchWalkingRoute } from "@/lib/geo/route";
-import { findNearest, type NearestResult } from "@/lib/parking/nearest";
+import { fetchNearest } from "@/lib/parking/nearest-client";
+import type { NearestResult } from "@/lib/parking/nearest";
 import type {
   LatLng,
   MapCandidate,
@@ -35,7 +35,6 @@ function idOf(r: NearestResult): string | number {
 }
 
 export default function Home() {
-  const { data } = useParkingData();
   const geo = useGeolocation();
 
   const [origin, setOrigin] = useState<Origin | null>(null);
@@ -48,18 +47,24 @@ export default function Home() {
 
   const routeReq = useRef(0);
 
-  // Set a new origin and compute the nearest blocks. Called from event
-  // handlers (not an effect); the search controls stay disabled until `data`
-  // is loaded, so it's always available here.
-  function applyOrigin(o: Origin) {
-    if (!data) return;
-    const res = findNearest(o.latlng, data, 5);
+  // Set a new origin and compute the nearest blocks. The ranking runs on the
+  // server over the full dataset (the client only holds the current viewport),
+  // so this is async — origin is set immediately, results land when the fetch
+  // resolves.
+  async function applyOrigin(o: Origin) {
     setOrigin(o);
-    setResults(res);
+    setResults([]); // drop the previous origin's results until the fetch lands
     setSelectedId(null);
     setRoute(null);
     setFeature(null);
-    setFocusBounds([o.latlng, ...res.map((r) => r.snapped)]);
+    try {
+      const res = await fetchNearest(o.latlng, 5);
+      setResults(res);
+      setFocusBounds([o.latlng, ...res.map((r) => r.snapped)]);
+    } catch {
+      setResults([]);
+      setFocusBounds([o.latlng]);
+    }
   }
 
   const candidates = useMemo<MapCandidate[]>(
@@ -115,7 +120,6 @@ export default function Home() {
       <MapView
         createProvider={createLeafletProvider}
         initialView={INITIAL_VIEW}
-        data={data}
         origin={origin?.latlng ?? null}
         candidates={candidates}
         selectedId={selectedId}
@@ -165,7 +169,7 @@ export default function Home() {
             }
             locating={geo.status === "locating"}
             locationError={locationError}
-            ready={!!data}
+            ready
           />
 
           <button

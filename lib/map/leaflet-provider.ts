@@ -1,6 +1,7 @@
 import type { FeatureCollection, Feature, LineString, MultiLineString } from "geojson";
 import { lineMidpoint } from "./geometry";
 import type {
+  BBox,
   LatLng,
   MapCandidate,
   MapProvider,
@@ -40,6 +41,7 @@ export function createLeafletProvider(): MapProvider {
 
   let selectHandler: SelectHandler = () => {};
   let mapClickHandler: (latlng: LatLng) => void = () => selectHandler(null);
+  let viewportHandler: (bounds: BBox) => void = () => {};
   // True while nearest-candidates are shown: the full ~11k overview is hidden.
   let focused = false;
   // Set synchronously by unmount(); checked after the dynamic import so Strict
@@ -60,6 +62,12 @@ export function createLeafletProvider(): MapProvider {
       if (map.hasLayer(polylineLayer)) map.removeLayer(polylineLayer);
       if (!map.hasLayer(markerLayer)) map.addLayer(markerLayer);
     }
+  }
+
+  function currentBBox(): BBox | null {
+    if (!map) return null;
+    const b = map.getBounds();
+    return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
   }
 
   function restyleCandidates() {
@@ -93,6 +101,12 @@ export function createLeafletProvider(): MapProvider {
       }).addTo(map);
 
       map.on("zoomend", syncLayersToZoom);
+      // `moveend` fires after both pans and zooms settle — the cue to refetch
+      // the features for the new viewport.
+      map.on("moveend", () => {
+        const b = currentBBox();
+        if (b) viewportHandler(b);
+      });
       map.on("click", (e) => mapClickHandler({ lat: e.latlng.lat, lng: e.latlng.lng }));
     },
 
@@ -231,6 +245,14 @@ export function createLeafletProvider(): MapProvider {
 
     onMapClick(handler: (latlng: LatLng) => void) {
       mapClickHandler = handler;
+    },
+
+    getBounds() {
+      return currentBBox();
+    },
+
+    onViewportChange(handler: (bounds: BBox) => void) {
+      viewportHandler = handler;
     },
 
     unmount() {
