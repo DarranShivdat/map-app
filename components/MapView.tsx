@@ -29,12 +29,17 @@ interface MapViewProps {
   /** Factory for the map implementation. Swap this to change providers. */
   createProvider: MapProviderFactory;
   initialView: MapViewport;
-  origin: LatLng | null;
+  /** The user's GPS location — drives the blue "you are here" dot only. */
+  userLocation: LatLng | null;
+  /** The point we search parking near, when it isn't the GPS location. */
+  searchOrigin: LatLng | null;
   candidates: MapCandidate[];
   selectedId: string | number | null;
   route: LatLng[] | null;
   /** When this array reference changes, the camera fits to these points. */
   focusBounds: LatLng[] | null;
+  /** Increment to fly the camera back to {@link userLocation} (move only). */
+  recenterSignal: number;
   onSelect: SelectHandler;
   onMapClick: (latlng: LatLng) => void;
 }
@@ -47,11 +52,13 @@ interface MapViewProps {
 export default function MapView({
   createProvider,
   initialView,
-  origin,
+  userLocation,
+  searchOrigin,
   candidates,
   selectedId,
   route,
   focusBounds,
+  recenterSignal,
   onSelect,
   onMapClick,
 }: MapViewProps) {
@@ -134,8 +141,12 @@ export default function MapView({
   }, [ready]);
 
   useEffect(() => {
-    if (ready) providerRef.current?.setOrigin(origin);
-  }, [ready, origin]);
+    if (ready) providerRef.current?.setOrigin(userLocation);
+  }, [ready, userLocation]);
+
+  useEffect(() => {
+    if (ready) providerRef.current?.setSearchOrigin(searchOrigin);
+  }, [ready, searchOrigin]);
 
   useEffect(() => {
     if (ready) providerRef.current?.setCandidates(candidates);
@@ -154,6 +165,15 @@ export default function MapView({
   useEffect(() => {
     if (ready && focusBounds) providerRef.current?.fitBounds(focusBounds);
   }, [ready, focusBounds]);
+
+  // Recenter on the GPS dot (map move only). Fires on each signal bump, not on
+  // userLocation changes, so it never fights the initial fit.
+  useEffect(() => {
+    if (ready && recenterSignal > 0 && userLocation) {
+      providerRef.current?.flyTo(userLocation);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, recenterSignal]);
 
   return <div ref={containerRef} className="absolute inset-0 h-full w-full" />;
 }

@@ -58,8 +58,12 @@ export interface MapProvider {
   flyTo(target: LatLng, zoom?: number): void;
 
   // --- Directions-finder surface ---
-  /** Show/move the "you are here" origin marker (null clears it). */
+  /** Show/move the blue "you are here" GPS dot (null clears it). Reflects the
+   * user's geolocation only — never the typed search origin. */
   setOrigin(origin: LatLng | null): void;
+  /** Show/move the "search from here" marker for an origin that isn't the user's
+   * GPS location (e.g. a typed address or dropped pin); null clears it. */
+  setSearchOrigin(origin: LatLng | null): void;
   /**
    * Highlight the nearest candidates. A non-empty list switches the map into
    * "focused" mode (the full overview is hidden); an empty list restores it.

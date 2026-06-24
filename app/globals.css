@@ -87,6 +87,38 @@ body {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.22), 0 2px 8px rgba(15, 23, 42, 0.4);
 }
 
+/* "Search from here" marker — a teardrop pin for an origin that isn't the
+   user's GPS location (typed address / dropped pin). Distinct from .origin-dot
+   so the blue "you are here" dot stays unambiguous. */
+.search-origin {
+  background: transparent;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.4));
+}
+.search-origin::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--accent);
+  border: 2.5px solid #fff;
+  border-radius: 9999px 9999px 9999px 0;
+  box-sizing: border-box;
+}
+.search-origin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%);
+  background: #fff;
+  border-radius: 9999px;
+}
+
 /* Numbered nearest-parking candidate pins. */
 .parking-candidate {
   display: flex;

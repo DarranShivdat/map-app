@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import SearchBar from "@/components/SearchBar";
 import ResultsSheet from "@/components/ResultsSheet";
 import DetailSheet from "@/components/DetailSheet";
@@ -39,6 +39,11 @@ function idOf(r: NearestResult): string | number {
 export default function Home() {
   const geo = useGeolocation();
 
+  // The user's GPS position (blue dot). Set ONLY by geolocation — never by a
+  // typed address. Distinct from the search origin below.
+  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
+  // The point we rank parking near. Defaults to the user's location but can be
+  // overridden by a typed address or dropped pin without moving the blue dot.
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [results, setResults] = useState<NearestResult[]>([]);
   const [selectedId, setSelectedId] = useState<string | number | null>(null);
@@ -47,8 +52,30 @@ export default function Home() {
   const [feature, setFeature] = useState<SelectedFeature | null>(null);
   const [dropPin, setDropPin] = useState(false);
   const [sheetSnap, setSheetSnap] = useState<Snap>("half");
+  // Bumped to tell the search bar to blank itself (e.g. when results dismissed).
+  const [clearSignal, setClearSignal] = useState(0);
+  // Bumped to fly the map back to the blue GPS dot (recenter button).
+  const [recenterSignal, setRecenterSignal] = useState(0);
 
   const routeReq = useRef(0);
+
+  // Request geolocation immediately on load (not gated behind a button). On
+  // success we drop the blue dot and recenter; we do NOT auto-search — the
+  // search bar is prefilled with "Current location" and runs only on submit.
+  useEffect(() => {
+    let cancelled = false;
+    geo.locate().then((ll) => {
+      if (ll && !cancelled) {
+        setUserLocation(ll);
+        setFocusBounds([ll]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount; geo.locate is stable (useCallback).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Set a new origin and compute the nearest blocks. The ranking runs on the
   // server over the full dataset (the client only holds the current viewport),
@@ -96,20 +123,34 @@ export default function Home() {
     if (path && routeReq.current === token) setRoute(path);
   }
 
-  async function handleUseMyLocation() {
-    const ll = await geo.locate();
+  // Search from the user's GPS location. Reuses the location we already have;
+  // only re-prompts if we don't (e.g. the initial request was denied).
+  async function searchFromLocation() {
+    let ll = userLocation;
+    if (!ll) {
+      ll = await geo.locate();
+      if (ll) setUserLocation(ll);
+    }
     if (ll) applyOrigin({ source: "geo", latlng: ll, label: "Current location" });
   }
 
-  function reset() {
+  // Clear the search origin, results, and route back to a clean slate. Leaves
+  // the blue GPS dot (userLocation) untouched.
+  function clearSearchState() {
     setOrigin(null);
     setResults([]);
     setSelectedId(null);
     setRoute(null);
-    setFeature(null);
     setFocusBounds(null);
+    setFeature(null);
     setDropPin(false);
     setSheetSnap("half");
+  }
+
+  // Sheet's own ✕ / drag-dismiss: clear state AND blank+close the search field.
+  function dismissResults() {
+    clearSearchState();
+    setClearSignal((n) => n + 1);
   }
 
   const statusMessage =
@@ -121,16 +162,28 @@ export default function Home() {
 
   const hasResults = !!origin && results.length > 0;
 
+  // Recenter button: shown when we have a GPS dot, hidden behind any expanded
+  // sheet (so it's never occluded). Sits above the results sheet at "peek".
+  const detailUp = !hasResults && !!feature;
+  const showRecenter = !!userLocation && !detailUp && (!hasResults || sheetSnap === "peek");
+  const recenterRaised = hasResults && sheetSnap === "peek";
+
+  // The search-origin marker only appears when the origin isn't the GPS dot
+  // (typed address / dropped pin); otherwise the blue dot already marks it.
+  const searchMarker = origin && origin.source !== "geo" ? origin.latlng : null;
+
   return (
     <main className="relative h-[100dvh] w-full overflow-hidden">
       <MapView
         createProvider={createLeafletProvider}
         initialView={INITIAL_VIEW}
-        origin={origin?.latlng ?? null}
+        userLocation={userLocation}
+        searchOrigin={searchMarker}
         candidates={candidates}
         selectedId={selectedId}
         route={route}
         focusBounds={focusBounds}
+        recenterSignal={recenterSignal}
         onSelect={(f) => {
           if (!f) {
             setFeature(null);
@@ -157,7 +210,7 @@ export default function Home() {
       >
         <div className="pointer-events-auto mx-auto max-w-xl space-y-2.5">
           <SearchBar
-            onUseMyLocation={handleUseMyLocation}
+            onSearchFromLocation={searchFromLocation}
             onPickAddress={(hit) =>
               applyOrigin({ source: "address", latlng: { lat: hit.lat, lng: hit.lng }, label: hit.label })
             }
@@ -166,16 +219,37 @@ export default function Home() {
             }
             locating={geo.status === "locating"}
             ready
-            hasOrigin={!!origin}
-            onReset={reset}
+            hasUserLocation={!!userLocation}
             dropPin={dropPin}
             onToggleDropPin={() => setDropPin((v) => !v)}
+            clearSignal={clearSignal}
+            onClear={clearSearchState}
           />
           {statusMessage && !hasResults && (
             <StatusBanner message={statusMessage} tone="info" />
           )}
         </div>
       </div>
+
+      {/* Recenter on my location (map move only — no search). */}
+      {showRecenter && (
+        <button
+          type="button"
+          onClick={() => setRecenterSignal((n) => n + 1)}
+          aria-label="Recenter on my location"
+          className="absolute right-3 z-[1000] flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-white/85 text-zinc-700 shadow-[0_4px_16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition active:scale-95"
+          style={{
+            bottom: recenterRaised
+              ? "calc(env(safe-area-inset-bottom) + 164px)"
+              : "calc(env(safe-area-inset-bottom) + 1.5rem)",
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
 
       {/* Results sheet (search flow). */}
       {hasResults && (
@@ -188,6 +262,7 @@ export default function Home() {
           snap={sheetSnap}
           onSnapChange={setSheetSnap}
           onSelect={selectResult}
+          onDismiss={dismissResults}
         />
       )}
 

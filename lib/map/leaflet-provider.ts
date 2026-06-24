@@ -34,6 +34,7 @@ export function createLeafletProvider(): MapProvider {
   let polylineLayer: import("leaflet").GeoJSON | null = null;
   let markerLayer: import("leaflet").MarkerClusterGroup | null = null;
   let originMarker: import("leaflet").Marker | null = null;
+  let searchOriginMarker: import("leaflet").Marker | null = null;
   let candidateLayer: import("leaflet").LayerGroup | null = null;
   let routeLayer: import("leaflet").Polyline | null = null;
   let candidateEntries: CandidateEntry[] = [];
@@ -172,6 +173,15 @@ export function createLeafletProvider(): MapProvider {
       originMarker = L.marker([origin.lat, origin.lng], { icon, zIndexOffset: 1000 }).addTo(map);
     },
 
+    setSearchOrigin(origin: LatLng | null) {
+      if (!map) return;
+      searchOriginMarker?.remove();
+      searchOriginMarker = null;
+      if (!origin) return;
+      const icon = L.divIcon({ className: "search-origin", iconSize: [28, 36], iconAnchor: [14, 34] });
+      searchOriginMarker = L.marker([origin.lat, origin.lng], { icon, zIndexOffset: 900 }).addTo(map);
+    },
+
     setCandidates(candidates: MapCandidate[]) {
       if (!map) return;
       candidateLayer?.remove();
@@ -262,6 +272,7 @@ export function createLeafletProvider(): MapProvider {
       polylineLayer = null;
       markerLayer = null;
       originMarker = null;
+      searchOriginMarker = null;
       candidateLayer = null;
       routeLayer = null;
       candidateEntries = [];
